@@ -10,7 +10,7 @@ variables:
 name: v$(VersionPart_Major).$(VersionPart_Minor).$(VersionPart_Build)
 
 trigger:
-- master
+- main
 pr: none
 
 stages:
@@ -23,12 +23,6 @@ stages:
     pool: 
       vmImage: 'windows-latest'
     steps:
-    - task: PowerShell@2
-      displayName: 'Prepare'
-      inputs:
-        pwsh: true
-        targetType: filePath
-        filePath: scripts/prepare.ps1
     - task: NuGetToolInstaller@0
       displayName: 'Use NuGet 4.9'
       inputs:
