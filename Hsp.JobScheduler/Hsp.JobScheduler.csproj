@@ -1,0 +1,17 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net8.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <Description>A simple job scheduler for when the likes of Hangfire and Quartz are overkill.</Description>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Cronos" Version="0.8.4"/>
+        <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="9.0.0"/>
+        <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="9.0.0"/>
+        <PackageReference Include="System.ServiceModel.Primitives" Version="8.1.0"/>
+    </ItemGroup>
+
+</Project>
