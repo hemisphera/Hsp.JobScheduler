@@ -8,10 +8,20 @@ namespace Hsp.JobScheduler;
 /// </summary>
 public class JobExecution
 {
+  private readonly ILogger<JobExecution>? _logger;
+
+  private readonly IServiceProvider? _serviceProvider;
+
+  private readonly IJobSchedulerNotifier? _notifier;
+
   /// <summary>
   /// The definition that started the job.
   /// </summary>
   public IJobDefinition Definition { get; }
+
+  public Task Task { get; private set; }
+
+  public SimpleJobScheduler Scheduler { get; }
 
   /// <summary>
   /// The ID of the job instance.
@@ -19,14 +29,9 @@ public class JobExecution
   public Guid Id { get; } = Guid.NewGuid();
 
   /// <summary>
-  /// The task that is running the job.
-  /// </summary>
-  public Task Task { get; }
-
-  /// <summary>
   /// The cancellation token source for this job.
   /// </summary>
-  public CancellationTokenSource CancellationTokenSource { get; }
+  public CancellationTokenSource CancellationTokenSource { get; init; }
 
   /// <summary>
   /// Specifies the time when the job started.
@@ -69,44 +74,55 @@ public class JobExecution
   public bool Running => FinishTime == null;
 
 
-  internal static JobExecution Start(IJobDefinition definition, IServiceProvider? serviceProvider, CancellationToken parentToken)
+  internal static JobExecution Start(SimpleJobScheduler scheduler, IJobDefinition definition, IServiceProvider? serviceProvider, CancellationTokenSource token)
   {
-    var logger = serviceProvider?.GetService<ILogger<JobExecution>>();
-    var instance = new JobExecution(definition, async ct => { await definition.Execute(serviceProvider, ct); }, parentToken, logger);
-    var schedule = definition.Schedule;
-    if (schedule != null)
-      schedule.LastRunTime = DateTime.Now;
+    var instance = new JobExecution(scheduler, definition, serviceProvider, token);
     return instance;
   }
 
 
-  private JobExecution(IJobDefinition definition, Func<CancellationToken, Task> func, CancellationToken parentToken, ILogger? logger)
+  private JobExecution(SimpleJobScheduler scheduler, IJobDefinition definition, IServiceProvider? serviceProvider, CancellationTokenSource tokenSource)
   {
+    Scheduler = scheduler;
     Definition = definition;
-    CancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(parentToken);
-    var newToken = CancellationTokenSource.Token;
-    Task = Task.Run(async () =>
+    _serviceProvider = serviceProvider;
+    CancellationTokenSource = tokenSource;
+    _logger = serviceProvider?.GetService<ILogger<JobExecution>>();
+    _notifier = serviceProvider?.GetService<IJobSchedulerNotifier>();
+    Task = Execute();
+  }
+
+
+  private async Task Execute()
+  {
+    var schedule = Definition.Schedule;
+    if (schedule != null)
+      schedule.LastRunTime = DateTime.Now;
+
+    try
     {
-      try
-      {
-        logger?.LogInformation("Starting job execution {id} for definition {definitionId} {definitionName}.", Id, definition.Id, definition.Name);
-        await func(newToken);
-      }
-      catch (Exception ex)
-      {
-        logger?.LogError(ex, "Job failed {id} for definition {definitionId} {definitionName} failed.", Id, definition.Id, definition.Name);
-        Error = ex;
-      }
-      finally
-      {
-        FinishTime = DateTime.Now;
-        logger?.LogInformation("Finished job execution {id} for definition {definitionId} {definitionName} in {duration}ms.",
-          Id,
-          definition.Id,
-          definition.Name,
-          Duration?.TotalMilliseconds
-        );
-      }
-    }, newToken);
+      if (_notifier != null)
+        await _notifier.OnJobStarted(this);
+      _logger?.LogInformation("Starting job execution {id} for definition {definitionId} {definitionName}.", Id, Definition.Id, Definition.Name);
+      using var scope = _serviceProvider?.CreateScope();
+      await Definition.Execute(scope?.ServiceProvider, CancellationTokenSource.Token);
+    }
+    catch (Exception ex)
+    {
+      _logger?.LogError(ex, "Job failed {id} for definition {definitionId} {definitionName} failed.", Id, Definition.Id, Definition.Name);
+      Error = ex;
+    }
+    finally
+    {
+      FinishTime = DateTime.Now;
+      _logger?.LogInformation("Finished job execution {id} for definition {definitionId} {definitionName} in {duration}ms.",
+        Id,
+        Definition.Id,
+        Definition.Name,
+        Duration?.TotalMilliseconds
+      );
+      if (_notifier != null)
+        await _notifier.OnJobFinished(this);
+    }
   }
 }

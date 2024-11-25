@@ -16,6 +16,7 @@ public class SimpleJobScheduler
   private readonly SemaphoreSlim _jobLock = new(1, 1);
 
   private CancellationTokenSource _cancellationTokenSource = new();
+  private readonly IJobSchedulerNotifier? _notifier;
 
   /// <summary>
   /// Indicates if the scheduler is currently running.
@@ -29,6 +30,7 @@ public class SimpleJobScheduler
   public SimpleJobScheduler(IServiceProvider? serviceProvider = null)
   {
     _logger = serviceProvider?.GetService<ILogger<SimpleJobScheduler>>();
+    _notifier = serviceProvider?.GetService<IJobSchedulerNotifier>();
     _serviceProvider = serviceProvider;
   }
 
@@ -105,7 +107,12 @@ public class SimpleJobScheduler
     try
     {
       await _jobLock.WaitAsync();
-      _definitions.AddRange(jobs);
+      foreach (var job in jobs)
+      {
+        _definitions.Add(job);
+        if (_notifier != null)
+          await _notifier.OnDefinitionAdded(this, job);
+      }
     }
     finally
     {
@@ -153,6 +160,8 @@ public class SimpleJobScheduler
       var jobsToRemoe = await Get(def => idsArray.Contains(def.Id));
       foreach (var tr in jobsToRemoe)
       {
+        if (_notifier != null)
+          await _notifier.OnDefinitionRemoved(this, tr);
         _definitions.Remove(tr);
       }
     }
@@ -173,18 +182,19 @@ public class SimpleJobScheduler
     await Task.WhenAll(_executions.Where(i => i.Running).ToArray().Select(async i => await i.Task));
     IsRunning = false;
     _logger?.LogInformation("The job scheduler has stopped.");
+    if (_notifier != null) await _notifier.OnSchedulerStopped(this);
   }
 
   /// <summary>
   /// Starts the scheduler.
   /// </summary>
-  public void Start()
+  public async Task Start()
   {
     if (IsRunning) return;
     IsRunning = true;
     _cancellationTokenSource = new CancellationTokenSource();
 
-    Task.Run(async () =>
+    _ = Task.Run(async () =>
     {
       var token = _cancellationTokenSource.Token;
       while (!token.IsCancellationRequested)
@@ -194,7 +204,8 @@ public class SimpleJobScheduler
         var definitions = await Get(CanRunJob);
         foreach (var definition in definitions)
         {
-          var execution = JobExecution.Start(definition, _serviceProvider, token);
+          var linkedToken = CancellationTokenSource.CreateLinkedTokenSource(token);
+          var execution = JobExecution.Start(this, definition, _serviceProvider, linkedToken);
           _logger?.LogInformation("Execution {id} has been started for definition {definitionId}.", execution.Id, definition.Id);
           _executions.Add(execution);
         }
@@ -204,6 +215,7 @@ public class SimpleJobScheduler
     });
 
     _logger?.LogInformation("The job scheduler has started.");
+    if (_notifier != null) await _notifier.OnSchedulerStarted(this);
   }
 
   /// <summary>
