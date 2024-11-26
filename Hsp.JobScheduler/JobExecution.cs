@@ -12,8 +12,6 @@ public class JobExecution
 
   private readonly IServiceProvider? _serviceProvider;
 
-  private readonly IJobSchedulerNotifier? _notifier;
-
   /// <summary>
   /// The definition that started the job.
   /// </summary>
@@ -88,7 +86,6 @@ public class JobExecution
     _serviceProvider = serviceProvider;
     CancellationTokenSource = tokenSource;
     _logger = serviceProvider?.GetService<ILogger<JobExecution>>();
-    _notifier = serviceProvider?.GetService<IJobSchedulerNotifier>();
     Task = Execute();
   }
 
@@ -101,8 +98,7 @@ public class JobExecution
 
     try
     {
-      if (_notifier != null)
-        await _notifier.OnJobStarted(this);
+      Scheduler.RaiseOnJobStarted(this);
       _logger?.LogInformation("Starting job execution {id} for definition {definitionId} {definitionName}.", Id, Definition.Id, Definition.Name);
       using var scope = _serviceProvider?.CreateScope();
       await Definition.Execute(scope?.ServiceProvider, CancellationTokenSource.Token);
@@ -121,8 +117,7 @@ public class JobExecution
         Definition.Name,
         Duration?.TotalMilliseconds
       );
-      if (_notifier != null)
-        await _notifier.OnJobFinished(this);
+      Scheduler.RaiseOnJobCompleted(this);
     }
   }
 }

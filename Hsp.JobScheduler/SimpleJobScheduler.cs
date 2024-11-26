@@ -16,12 +16,16 @@ public class SimpleJobScheduler
   private readonly SemaphoreSlim _jobLock = new(1, 1);
 
   private CancellationTokenSource _cancellationTokenSource = new();
-  private readonly IJobSchedulerNotifier? _notifier;
 
   /// <summary>
   /// Indicates if the scheduler is currently running.
   /// </summary>
   public bool IsRunning { get; private set; }
+
+
+  public event EventHandler<JobExecution>? OnJobStarted;
+
+  public event EventHandler<JobExecution>? OnJobCompleted;
 
 
   /// <summary>
@@ -30,7 +34,6 @@ public class SimpleJobScheduler
   public SimpleJobScheduler(IServiceProvider? serviceProvider = null)
   {
     _logger = serviceProvider?.GetService<ILogger<SimpleJobScheduler>>();
-    _notifier = serviceProvider?.GetService<IJobSchedulerNotifier>();
     _serviceProvider = serviceProvider;
   }
 
@@ -110,8 +113,6 @@ public class SimpleJobScheduler
       foreach (var job in jobs)
       {
         _definitions.Add(job);
-        if (_notifier != null)
-          await _notifier.OnDefinitionAdded(this, job);
       }
     }
     finally
@@ -160,8 +161,6 @@ public class SimpleJobScheduler
       var jobsToRemoe = await Get(def => idsArray.Contains(def.Id));
       foreach (var tr in jobsToRemoe)
       {
-        if (_notifier != null)
-          await _notifier.OnDefinitionRemoved(this, tr);
         _definitions.Remove(tr);
       }
     }
@@ -182,7 +181,6 @@ public class SimpleJobScheduler
     await Task.WhenAll(_executions.Where(i => i.Running).ToArray().Select(async i => await i.Task));
     IsRunning = false;
     _logger?.LogInformation("The job scheduler has stopped.");
-    if (_notifier != null) await _notifier.OnSchedulerStopped(this);
   }
 
   /// <summary>
@@ -215,7 +213,7 @@ public class SimpleJobScheduler
     });
 
     _logger?.LogInformation("The job scheduler has started.");
-    if (_notifier != null) await _notifier.OnSchedulerStarted(this);
+    await Task.CompletedTask;
   }
 
   /// <summary>
@@ -253,5 +251,15 @@ public class SimpleJobScheduler
     var instances = GetExecutions(jobDefinition.Id);
     if (instances.Any(i => i.Running)) return false;
     return jobDefinition.Schedule?.CronExpression == null;
+  }
+
+  internal void RaiseOnJobStarted(JobExecution jobExecution)
+  {
+    OnJobStarted?.Invoke(this, jobExecution);
+  }
+
+  internal void RaiseOnJobCompleted(JobExecution jobExecution)
+  {
+    OnJobCompleted?.Invoke(this, jobExecution);
   }
 }
