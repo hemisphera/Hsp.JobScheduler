@@ -12,19 +12,20 @@ public class Schedule
   /// <summary>
   /// Specifies the cron expression for the job.
   /// If this is not specified, the job will be a one-time job.
-  /// IF this is specified, the job will run at the specified frequency. 
+  /// If this is specified, the job will run at the specified frequency. 
   /// </summary>
   public string? CronExpression { get; }
 
   /// <summary>
-  /// An optional jitter value that will be added to the next run time.
+  /// An optional jitter value that will be added when the next run time is calculated.
   /// </summary>
   public TimeSpan? Jitter { get; }
 
   /// <summary>
   /// The next calculated run time for the job.
+  /// You can manually override this, but any subsequent updates to the last run time will recalculate this value.
   /// </summary>
-  public DateTime NextRunTime { get; private set; }
+  public DateTime NextRunTime { get; set; }
 
   /// <summary>
   /// The next calculated run time for the job.
@@ -39,6 +40,7 @@ public class Schedule
       _lastRunTime = value;
     }
   }
+
 
   public Schedule(string? cronExpression, DateTime? earliestStartTime, TimeSpan? jitter = null)
   {
