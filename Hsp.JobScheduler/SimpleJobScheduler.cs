@@ -154,12 +154,12 @@ public class SimpleJobScheduler
   /// <param name="definitionIds">The job definitions to remove.</param>
   public async Task Remove(IEnumerable<Guid> definitionIds)
   {
+    var idsArray = definitionIds.ToArray();
+    var jobsToRemove = await Get(def => idsArray.Contains(def.Id));
     try
     {
       await _jobLock.WaitAsync();
-      var idsArray = definitionIds.ToArray();
-      var jobsToRemoe = await Get(def => idsArray.Contains(def.Id));
-      foreach (var tr in jobsToRemoe)
+      foreach (var tr in jobsToRemove)
       {
         _definitions.Remove(tr);
       }
