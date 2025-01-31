@@ -22,6 +22,8 @@ public class SimpleJobScheduler
   /// </summary>
   public bool IsRunning { get; private set; }
 
+  public TimeProvider Clock { get; }
+
 
   public event EventHandler<JobExecution>? OnJobStarted;
 
@@ -34,6 +36,7 @@ public class SimpleJobScheduler
   public SimpleJobScheduler(IServiceProvider? serviceProvider = null)
   {
     _logger = serviceProvider?.GetService<ILogger<SimpleJobScheduler>>();
+    Clock = serviceProvider?.GetService<TimeProvider>() ?? TimeProvider.System;
     _serviceProvider = serviceProvider;
   }
 
@@ -242,8 +245,9 @@ public class SimpleJobScheduler
       if (executions.Any(i => i.Running)) return false;
     }
 
-    var nextRunTime = definition.Schedule?.NextRunTime ?? DateTime.Now;
-    return DateTime.Now >= nextRunTime;
+    var now = Clock.GetUtcNow();
+    var nextRunTime = definition.Schedule?.NextRunTime ?? now;
+    return now >= nextRunTime;
   }
 
   private bool IsExpired(IJobDefinition jobDefinition)

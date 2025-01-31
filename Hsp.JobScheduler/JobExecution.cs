@@ -1,4 +1,5 @@
-﻿using Microsoft.Extensions.DependencyInjection;
+﻿using System.Globalization;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace Hsp.JobScheduler;
@@ -34,7 +35,7 @@ public class JobExecution
   /// <summary>
   /// Specifies the time when the job started.
   /// </summary>
-  public DateTime StartTime { get; } = DateTime.Now;
+  public DateTimeOffset StartTime { get; }
 
   /// <summary>
   /// Specifies if the job was successful.
@@ -58,7 +59,7 @@ public class JobExecution
   /// Specifies the time when the job finished.
   /// This will be null if the job is still running.
   /// </summary>
-  public DateTime? FinishTime { get; private set; }
+  public DateTimeOffset? FinishTime { get; private set; }
 
   /// <summary>
   /// The duration of the job.
@@ -82,19 +83,20 @@ public class JobExecution
   private JobExecution(SimpleJobScheduler scheduler, IJobDefinition definition, IServiceProvider? serviceProvider, CancellationTokenSource tokenSource)
   {
     Scheduler = scheduler;
+    StartTime = scheduler.Clock.GetUtcNow();
     Definition = definition;
     _serviceProvider = serviceProvider;
     CancellationTokenSource = tokenSource;
     _logger = serviceProvider?.GetService<ILogger<JobExecution>>();
-    Task = Execute();
+    Task = Execute(scheduler.Clock);
   }
 
 
-  private async Task Execute()
+  private async Task Execute(TimeProvider clock)
   {
     var schedule = Definition.Schedule;
     if (schedule != null)
-      schedule.LastRunTime = DateTime.Now;
+      schedule.LastRunTime = clock.GetUtcNow();
 
     try
     {
@@ -110,12 +112,13 @@ public class JobExecution
     }
     finally
     {
-      FinishTime = DateTime.Now;
-      _logger?.LogInformation("Finished job execution {id} for definition {definitionId} {definitionName} in {duration}ms.",
+      FinishTime = clock.GetUtcNow();
+      _logger?.LogInformation("Finished job execution {id} for definition {definitionId} {definitionName} in {duration}ms. Next execution is {next}.",
         Id,
         Definition.Id,
         Definition.Name,
-        Duration?.TotalMilliseconds
+        Duration?.TotalMilliseconds,
+        Definition.Schedule?.NextRunTime.UtcDateTime.ToString(CultureInfo.CurrentCulture) ?? "<none>"
       );
       Scheduler.RaiseOnJobCompleted(this);
     }

@@ -2,12 +2,12 @@
 
 public class Schedule
 {
-  private DateTime? _lastRunTime;
+  private DateTimeOffset? _lastRunTime;
 
   /// <summary>
   /// Specifies the earliest time the job can start.
   /// </summary>
-  public DateTime? EarliestStartTime { get; }
+  public DateTimeOffset? EarliestStartTime { get; }
 
   /// <summary>
   /// Specifies the cron expression for the job.
@@ -25,29 +25,29 @@ public class Schedule
   /// The next calculated run time for the job.
   /// You can manually override this, but any subsequent updates to the last run time will recalculate this value.
   /// </summary>
-  public DateTime NextRunTime { get; set; }
+  public DateTimeOffset NextRunTime { get; set; }
 
   /// <summary>
   /// The next calculated run time for the job.
   /// </summary>
-  public DateTime? LastRunTime
+  public DateTimeOffset? LastRunTime
   {
     get => _lastRunTime;
     set
     {
+      _lastRunTime = value;
       if (_lastRunTime != null)
         UpdateNextRunTime(_lastRunTime.Value);
-      _lastRunTime = value;
     }
   }
 
 
-  public Schedule(string? cronExpression, DateTime? earliestStartTime, TimeSpan? jitter = null)
+  public Schedule(string? cronExpression, DateTimeOffset? earliestStartTime, TimeSpan? jitter = null)
   {
     EarliestStartTime = earliestStartTime;
     CronExpression = cronExpression;
     Jitter = jitter;
-    UpdateNextRunTime();
+    UpdateNextRunTime(DateTimeOffset.MinValue);
   }
 
   public Schedule(string cronExpression, TimeSpan? jitter = null)
@@ -55,7 +55,7 @@ public class Schedule
   {
   }
 
-  public Schedule(DateTime earliestStartTime, TimeSpan? jitter = null)
+  public Schedule(DateTimeOffset earliestStartTime, TimeSpan? jitter = null)
     : this(null, earliestStartTime, jitter)
   {
   }
@@ -64,11 +64,10 @@ public class Schedule
   /// <summary>
   /// Updates the next run time based on the last run time.
   /// </summary>
-  /// <param name="lastRunTime">The last run time. If null, the current time is used.</param>
-  public void UpdateNextRunTime(DateTime? lastRunTime = null)
+  /// <param name="refTime">The reference time to use.</param>
+  public void UpdateNextRunTime(DateTimeOffset refTime)
   {
-    var refTime = lastRunTime ?? DateTime.Now;
-    NextRunTime = GetNextRunTime(refTime) ?? refTime;
+    NextRunTime = CalculateNextRunTime(refTime) ?? refTime;
     if (Jitter == null) return;
 
     var random = new Random();
@@ -78,16 +77,16 @@ public class Schedule
   }
 
 
-  private DateTime? GetNextRunTime(DateTime refTime)
+  private DateTimeOffset? CalculateNextRunTime(DateTimeOffset refTime)
   {
-    var fallBack = DateTime.Now.Subtract(TimeSpan.FromSeconds(1));
-    var earliestStartTime = (EarliestStartTime ?? fallBack).ToUniversalTime();
+    var earliestStartTime = EarliestStartTime ?? DateTimeOffset.MinValue;
 
     if (CronExpression == null) return earliestStartTime;
     if (!Cronos.CronExpression.TryParse(CronExpression, out var exp)) return earliestStartTime;
 
-    var nextRuntime = exp.GetNextOccurrence(refTime.ToUniversalTime());
-    if (nextRuntime == null) return earliestStartTime;
+    var nextRuntimeUtc = exp.GetNextOccurrence(refTime.UtcDateTime);
+    if (nextRuntimeUtc == null) return earliestStartTime;
+    var nextRuntime = new DateTimeOffset(nextRuntimeUtc.Value, TimeSpan.Zero);
     return nextRuntime < earliestStartTime ? earliestStartTime : nextRuntime;
   }
 }
