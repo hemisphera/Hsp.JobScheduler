@@ -4,5 +4,5 @@ namespace Hsp.JobScheduler;
 
 public interface IJobTask : IAsyncDisposable
 {
-  Task RunAsync(IServiceScope? scope, CancellationToken token);
+  Task RunAsync(CancellationToken token);
 }
