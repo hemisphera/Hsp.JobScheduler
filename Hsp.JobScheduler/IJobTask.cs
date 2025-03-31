@@ -1,6 +1,8 @@
-﻿namespace Hsp.JobScheduler;
+﻿using Microsoft.Extensions.DependencyInjection;
 
-public interface IJobTask
+namespace Hsp.JobScheduler;
+
+public interface IJobTask : IAsyncDisposable
 {
-  Task RunAsync();
+  Task RunAsync(IServiceScope? scope, CancellationToken token);
 }

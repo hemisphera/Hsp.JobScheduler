@@ -37,15 +37,22 @@ public class TaskJobDefinition<T> : IJobDefinition where T : IJobTask
   /// <inheritdoc />
   public async Task Execute(IServiceProvider? serviceProvider, CancellationToken token)
   {
-    var job = CreateJob(serviceProvider);
-    await job.RunAsync();
+    var task = serviceProvider == null
+      ? ExecuteWithoutScope(token)
+      : ExecuteWithScope(serviceProvider, token);
+    await task;
   }
 
-  private static T CreateJob(IServiceProvider? serviceProvider)
+  private static async Task ExecuteWithScope(IServiceProvider serviceProvider, CancellationToken token)
   {
-    if (serviceProvider == null) return Activator.CreateInstance<T>();
     using var scope = serviceProvider.CreateScope();
-    var job = ActivatorUtilities.CreateInstance<T>(scope.ServiceProvider);
-    return job;
+    await using var job = ActivatorUtilities.CreateInstance<T>(scope.ServiceProvider);
+    await job.RunAsync(scope, token);
+  }
+
+  private static async Task ExecuteWithoutScope(CancellationToken token)
+  {
+    await using var job = Activator.CreateInstance<T>();
+    await job.RunAsync(null, token);
   }
 }
