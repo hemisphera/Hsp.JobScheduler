@@ -11,7 +11,7 @@ public class ActionJobDefinition : IJobDefinition
   public string Name { get; }
 
   /// <inheritdoc />
-  public Guid Id { get; }
+  public string Id { get; }
 
   /// <inheritdoc />
   public Schedule? Schedule { get; }
@@ -25,7 +25,7 @@ public class ActionJobDefinition : IJobDefinition
   /// <param name="name"></param>
   /// <param name="schedule"></param>
   /// <param name="action">The action to run.</param>
-  public ActionJobDefinition(Guid id, string name, Schedule? schedule, Func<IServiceProvider?, CancellationToken, Task> action)
+  public ActionJobDefinition(string id, string name, Schedule? schedule, Func<IServiceProvider?, CancellationToken, Task> action)
   {
     Name = name;
     Id = id;

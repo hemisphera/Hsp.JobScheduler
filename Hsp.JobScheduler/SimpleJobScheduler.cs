@@ -12,7 +12,7 @@ public class SimpleJobScheduler
   private readonly IServiceProvider? _serviceProvider;
   private readonly List<IJobDefinition> _definitions = [];
   private readonly SynchronizedCollection<JobExecution> _executions = [];
-  private readonly SynchronizedCollection<Guid> _forceStartJobs = [];
+  private readonly SynchronizedCollection<string> _forceStartJobs = [];
   private readonly SemaphoreSlim _jobLock = new(1, 1);
 
   private CancellationTokenSource _cancellationTokenSource = new();
@@ -73,7 +73,7 @@ public class SimpleJobScheduler
   /// </summary>
   /// <param name="definitionId"></param>
   /// <returns></returns>
-  public async Task<IJobDefinition?> Get(Guid definitionId)
+  public async Task<IJobDefinition?> Get(string definitionId)
   {
     var candidates = await Get(job => job.Id == definitionId);
     return candidates.FirstOrDefault();
@@ -85,7 +85,7 @@ public class SimpleJobScheduler
   /// <param name="definitionId">The ID of the job definition to get instances for.</param>
   /// <param name="filter">An optional filter to apply to the instances.</param>
   /// <returns>The list of job instances.</returns>
-  public JobExecution[] GetExecutions(Guid definitionId, Predicate<JobExecution>? filter = null)
+  public JobExecution[] GetExecutions(string definitionId, Predicate<JobExecution>? filter = null)
   {
     return _executions
       .Where(i => i.Definition.Id == definitionId)
@@ -137,7 +137,7 @@ public class SimpleJobScheduler
   /// Removes a scheduled job definition from the scheduler.
   /// </summary>
   /// <param name="definitionId">The ID of the job definition to remove.</param>
-  public Task Remove(Guid definitionId)
+  public Task Remove(string definitionId)
   {
     return Remove([definitionId]);
   }
@@ -155,7 +155,7 @@ public class SimpleJobScheduler
   /// Removes a list of scheduled job definitions from the scheduler.
   /// </summary>
   /// <param name="definitionIds">The job definitions to remove.</param>
-  public async Task Remove(IEnumerable<Guid> definitionIds)
+  public async Task Remove(IEnumerable<string> definitionIds)
   {
     var idsArray = definitionIds.ToArray();
     var jobsToRemove = await Get(def => idsArray.Contains(def.Id));
@@ -223,7 +223,7 @@ public class SimpleJobScheduler
   /// Forcibly starts a given job definition.
   /// </summary>
   /// <param name="definitionId">The ID of the job definition to start.</param>
-  public void ForceStart(Guid definitionId)
+  public void ForceStart(string definitionId)
   {
     if (_forceStartJobs.Contains(definitionId)) return;
     if (_definitions.FirstOrDefault(a => a.Id == definitionId) == null) return;

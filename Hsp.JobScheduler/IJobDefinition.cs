@@ -8,7 +8,7 @@ public interface IJobDefinition
   /// <summary>
   /// The ID of the definition.
   /// </summary>
-  Guid Id { get; }
+  string Id { get; }
 
   /// <summary>
   /// The name of the definition.

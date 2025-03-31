@@ -12,7 +12,7 @@ public class TaskJobDefinition<T> : IJobDefinition where T : IJobTask
   public string Name { get; }
 
   /// <inheritdoc />
-  public Guid Id { get; }
+  public string Id { get; }
 
   /// <inheritdoc />
   public Schedule? Schedule { get; }
@@ -26,7 +26,7 @@ public class TaskJobDefinition<T> : IJobDefinition where T : IJobTask
   /// <param name="id"></param>
   /// <param name="name"></param>
   /// <param name="schedule"></param>
-  public TaskJobDefinition(Guid id, string name, Schedule? schedule = null)
+  public TaskJobDefinition(string id, string name, Schedule? schedule = null)
   {
     Name = name;
     Id = id;
