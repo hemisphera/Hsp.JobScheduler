@@ -204,18 +204,20 @@ public class SimpleJobScheduler
   /// <summary>
   /// Starts the scheduler.
   /// </summary>
-  public async Task Start()
+  /// <param name="pollFrequency">The frequency at which to poll for jobs to execute. This defaults to 1000ms.</param>
+  public async Task Start(TimeSpan? pollFrequency = null)
   {
     if (IsRunning) return;
     IsRunning = true;
     _cancellationTokenSource = new CancellationTokenSource();
+    var actualPollFrequency = pollFrequency ?? TimeSpan.FromSeconds(1);
 
     _ = Task.Run(async () =>
     {
       var token = _cancellationTokenSource.Token;
       while (!token.IsCancellationRequested)
       {
-        await Task.Delay(1000, token);
+        await Task.Delay(actualPollFrequency, token);
 
         var definitions = await Get(CanRunJob);
         foreach (var definition in definitions)
