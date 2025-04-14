@@ -1,4 +1,6 @@
-﻿namespace Hsp.JobScheduler;
+﻿using Cronos;
+
+namespace Hsp.JobScheduler;
 
 public class Schedule
 {
@@ -14,7 +16,7 @@ public class Schedule
   /// If this is not specified, the job will be a one-time job.
   /// If this is specified, the job will run at the specified frequency. 
   /// </summary>
-  public string? CronExpression { get; }
+  public CronExpression? CronExpression { get; }
 
   /// <summary>
   /// An optional jitter value that will be added when the next run time is calculated.
@@ -41,8 +43,12 @@ public class Schedule
     }
   }
 
-
   public Schedule(string? cronExpression, DateTimeOffset? earliestStartTime, TimeSpan? jitter = null)
+    : this(string.IsNullOrEmpty(cronExpression) ? null : CronExpression.Parse(cronExpression), earliestStartTime, jitter)
+  {
+  }
+
+  public Schedule(CronExpression? cronExpression, DateTimeOffset? earliestStartTime, TimeSpan? jitter = null)
   {
     EarliestStartTime = earliestStartTime;
     CronExpression = cronExpression;
@@ -56,7 +62,7 @@ public class Schedule
   }
 
   public Schedule(DateTimeOffset earliestStartTime, TimeSpan? jitter = null)
-    : this(null, earliestStartTime, jitter)
+    : this((CronExpression?)null, earliestStartTime, jitter)
   {
   }
 
@@ -82,9 +88,7 @@ public class Schedule
     var earliestStartTime = EarliestStartTime ?? DateTimeOffset.MinValue;
 
     if (CronExpression == null) return earliestStartTime;
-    if (!Cronos.CronExpression.TryParse(CronExpression, out var exp)) return earliestStartTime;
-
-    var nextRuntimeUtc = exp.GetNextOccurrence(refTime.UtcDateTime);
+    var nextRuntimeUtc = CronExpression.GetNextOccurrence(refTime.UtcDateTime);
     if (nextRuntimeUtc == null) return earliestStartTime;
     var nextRuntime = new DateTimeOffset(nextRuntimeUtc.Value, TimeSpan.Zero);
     return nextRuntime < earliestStartTime ? earliestStartTime : nextRuntime;
