@@ -1,0 +1,6 @@
+{
+    "SkipTests": true,
+    "ProjectsToPack": [
+        "Hsp.JobScheduler\\Hsp.JobScheduler.csproj"
+    ]
+}
