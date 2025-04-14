@@ -1,89 +1,39 @@
 variables:
-  - name: VersionPart_Major
-    value: 0
-  - name: VersionPart_Minor
-    value: 0
-  - name: VersionPart_Build
-    value: '$[counter(format(''{0}.{1}'', variables[''VersionPart_Major''], variables[''VersionPart_Minor'']), 0)]'
-  - group: Build
+- name: VersionPart_Major
+  value: 0
+- name: VersionPart_Minor
+  value: 0
+- name: VersionPart_Build
+  value: '$[counter(format(''{0}.{1}'', variables[''VersionPart_Major''], variables[''VersionPart_Minor'']), 0)]'
+- name: Build_Version
+  value: '$[format(''{0}.{1}.{2}'', variables[''VersionPart_Major''], variables[''VersionPart_Minor''], variables[''VersionPart_Build''])]'
+- group: Build
 
-name: v$(VersionPart_Major).$(VersionPart_Minor).$(VersionPart_Build)
+name: v$(Build_Version)
+
+resources:
+  repositories:
+  - repository: DotNetBuilder
+    type: github
+    name: Hemisphera/DotNetBuilder
+    endpoint: github.com_hemisphera
 
 trigger:
-- main
-pr: none
+  branches:
+    include: [ 'main' ]
 
 stages:
 
 - stage: 'Build'
   displayName: 'Build'
   jobs:
-  - job:
-    displayName: 'Build'
-    pool: 
-      vmImage: 'windows-latest'
-    steps:
-    - task: NuGetToolInstaller@0
-      displayName: 'Use NuGet 4.9'
-      inputs:
-        versionSpec: 4.9
-    - task: Assembly-Info-NetCore@2
-      displayName: 'Update assembly information'
-      inputs:
-        Path: '$(Build.SourcesDirectory)'
-        FileNames: '**/*.csproj'
-        InsertAttributes: true
-        FileEncoding: 'auto'
-        WriteBOM: false
-        VersionNumber: '$(VersionPart_Major).$(VersionPart_Minor).0'
-        FileVersionNumber: '$(VersionPart_Major).$(VersionPart_Minor).$(VersionPart_Build)'
-        PackageVersion: '$(VersionPart_Major).$(VersionPart_Minor).$(VersionPart_Build)'
-        LogLevel: 'verbose'
-        FailOnWarning: false
-        DisableTelemetry: false
-    - task: NuGetCommand@2
-      displayName: 'NuGet Restore'
-      inputs:
-        command: 'restore'
-        restoreSolution: $(SlnFilename)
-    - task: DotNetCoreCLI@2
-      displayName: 'Build'
-      inputs:
-        command: build
-        nugetConfigPath: nuget.config
-        projects: '**/*.csproj'
-        arguments: --configuration release
-    - task: DotNetCoreCLI@2
-      displayName: 'Pack'
-      inputs:
-        command: pack
-        configurationToPack: release
-        outputDir: '$(Build.ArtifactStagingDirectory)'
-    - task: PublishPipelineArtifact@1
-      displayName: 'Publish artifacts'
-      inputs:
-        targetPath: '$(Build.ArtifactStagingDirectory)'
-        artifact: 'drop'
-        publishLocation: 'pipeline'
-
-- stage: 'Publish'
+  - template: Templates/jobs/build-and-test.yml@DotNetBuilder
+    parameters:
+      dotNetVersion: 8.x
+- stage: Deploy
   dependsOn: Build
   jobs:
-  - deployment:
-    displayName: 'Publish to NuGet'
-    environment: 'NuGet'
-    strategy:
-      runOnce:
-        deploy:
-          steps:
-          - task: PowerShell@2
-            inputs:
-             targetType: inline
-             script: Get-ChildItem "$(Pipeline.Workspace)" -Recurse | Write-Host
-          - task: NuGetCommand@2
-            displayName: 'Publish to NuGet'
-            inputs:
-              command: 'push'
-              nuGetFeedType: 'external'
-              publishFeedCredentials: 'NuGet'
-              packagesToPush: "$(Pipeline.Workspace)/drop/**.nupkg"
+  - template: 'Templates/jobs/deploy-nuget.yml@DotNetBuilder'
+    parameters:
+      feedApiKey: $(NUGET_API_KEY)
+      authenticateFeeds: 'Nuget_Push'
