@@ -22,6 +22,11 @@ public class SimpleJobScheduler
   /// </summary>
   public bool IsRunning { get; private set; }
 
+  /// <summary>
+  /// The name assigned to this scheduler.
+  /// </summary>
+  public string Name { get; }
+
   public TimeProvider Clock { get; }
 
 
@@ -34,7 +39,17 @@ public class SimpleJobScheduler
   /// </summary>
   /// <param name="serviceProvider">Specifies an optional service provider to use for service construction.</param>
   public SimpleJobScheduler(IServiceProvider? serviceProvider = null)
+    : this("default", serviceProvider)
   {
+  }
+
+  /// <summary>
+  /// </summary>
+  /// <param name="name">The name assigned to this scheduler.</param>
+  /// <param name="serviceProvider">Specifies an optional service provider to use for service construction.</param>
+  public SimpleJobScheduler(string name, IServiceProvider? serviceProvider = null)
+  {
+    Name = name;
     _logger = serviceProvider?.GetService<ILogger<SimpleJobScheduler>>();
     Clock = serviceProvider?.GetService<TimeProvider>() ?? TimeProvider.System;
     _serviceProvider = serviceProvider;
@@ -183,7 +198,7 @@ public class SimpleJobScheduler
     await _cancellationTokenSource.CancelAsync();
     await Task.WhenAll(_executions.Where(i => i.Running).ToArray().Select(async i => await i.Task));
     IsRunning = false;
-    _logger?.LogInformation("The job scheduler has stopped.");
+    _logger?.LogInformation("The job scheduler '{name}' has stopped.", Name);
   }
 
   /// <summary>
@@ -207,7 +222,7 @@ public class SimpleJobScheduler
         {
           var linkedToken = CancellationTokenSource.CreateLinkedTokenSource(token);
           var execution = JobExecution.Start(this, definition, _serviceProvider, linkedToken);
-          _logger?.LogInformation("Execution {id} has been started for definition {definitionId}.", execution.Id, definition.Id);
+          _logger?.LogInformation("Execution {id} has been started for definition {definitionId} on scheduler '{name}'.", execution.Id, definition.Id, Name);
           _executions.Add(execution);
         }
 
@@ -215,7 +230,7 @@ public class SimpleJobScheduler
       }
     });
 
-    _logger?.LogInformation("The job scheduler has started.");
+    _logger?.LogInformation("The job scheduler '{name}' has started.", Name);
     await Task.CompletedTask;
   }
 
@@ -228,7 +243,7 @@ public class SimpleJobScheduler
     if (_forceStartJobs.Contains(definitionId)) return;
     if (_definitions.FirstOrDefault(a => a.Id == definitionId) == null) return;
     _forceStartJobs.Add(definitionId);
-    _logger?.LogInformation("Forced job execution for {id} has been received.", definitionId);
+    _logger?.LogInformation("Forced job execution for {id} has been received on scheduler '{name}'.", definitionId, Name);
   }
 
   private bool CanRunJob(IJobDefinition definition)
