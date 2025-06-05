@@ -1,6 +1,7 @@
 ﻿using System.Globalization;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Hsp.JobScheduler;
 
@@ -9,7 +10,7 @@ namespace Hsp.JobScheduler;
 /// </summary>
 public class JobExecution
 {
-  private readonly ILogger<JobExecution>? _logger;
+  private readonly ILogger<JobExecution> _logger;
 
   private readonly IServiceProvider? _serviceProvider;
 
@@ -87,7 +88,7 @@ public class JobExecution
     Definition = definition;
     _serviceProvider = serviceProvider;
     CancellationTokenSource = tokenSource;
-    _logger = serviceProvider?.GetService<ILogger<JobExecution>>();
+    _logger = serviceProvider?.GetService<ILogger<JobExecution>>() ?? new NullLogger<JobExecution>();
     Task = Execute(scheduler.Clock);
   }
 
@@ -98,27 +99,39 @@ public class JobExecution
     if (schedule != null)
       schedule.LastRunTime = clock.GetUtcNow();
 
+    var failure = false;
+    var propertydict = new Dictionary<string, object>
+    {
+      { "executionId", Id },
+      { "definitionId", Definition.Id },
+      { "definitionName", Definition.Name }
+    };
+
+    using var loggerScope = _logger.BeginScope(propertydict);
+
     try
     {
       Scheduler.RaiseOnJobStarted(this);
-      _logger?.LogInformation("Starting job execution {id} for definition {definitionId} {definitionName}.", Id, Definition.Id, Definition.Name);
+      _logger.LogInformation("Starting job execution for definition {definitionId}.", Definition.Id);
       using var scope = _serviceProvider?.CreateScope();
       await Definition.Execute(scope?.ServiceProvider, CancellationTokenSource.Token);
     }
     catch (Exception ex)
     {
-      _logger?.LogError(ex, "Job failed {id} for definition {definitionId} {definitionName} failed.", Id, Definition.Id, Definition.Name);
+      _logger.LogError(ex, "Job failed for definition {definitionId} failed.", Definition.Id);
+      failure = true;
       Error = ex;
     }
     finally
     {
       FinishTime = clock.GetUtcNow();
-      _logger?.LogInformation("Finished job execution {id} for definition {definitionId} {definitionName} in {duration}ms. Next execution is {next}.",
-        Id,
+      var nextExecution = Definition.Schedule?.NextRunTime.UtcDateTime;
+      if (nextExecution != null)
+        propertydict.Add("nextExecution", nextExecution.Value);
+      propertydict.Add("success", !failure);
+      _logger.LogInformation("Finished job execution for definition {definitionId} in {duration}ms.",
         Definition.Id,
-        Definition.Name,
-        Duration?.TotalMilliseconds,
-        Definition.Schedule?.NextRunTime.UtcDateTime.ToString(CultureInfo.CurrentCulture) ?? "<none>"
+        Duration?.TotalMilliseconds
       );
       Scheduler.RaiseOnJobCompleted(this);
     }
