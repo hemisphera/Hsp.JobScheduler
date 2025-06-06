@@ -39,28 +39,28 @@ public class TaskJobDefinition<T> : IJobDefinition where T : IJobTask
 
 
   /// <inheritdoc />
-  public async Task Execute(JobExecution execution, IServiceProvider? serviceProvider, CancellationToken token)
+  public async Task Execute(Context context, IServiceProvider? serviceProvider, CancellationToken token)
   {
     var policy = RetryPolicy ?? Policy.NoOpAsync();
-    await policy.ExecuteAsync(async () =>
+    await policy.ExecuteAsync(async (ctx, ct) =>
     {
       var task = serviceProvider == null
-        ? ExecuteWithoutScope(execution, token)
-        : ExecuteWithScope(execution, serviceProvider, token);
+        ? ExecuteWithoutScope(ctx, ct)
+        : ExecuteWithScope(ctx, serviceProvider, ct);
       await task;
-    });
+    }, context, token);
   }
 
-  private static async Task ExecuteWithScope(JobExecution execution, IServiceProvider serviceProvider, CancellationToken token)
+  private static async Task ExecuteWithScope(Context context, IServiceProvider serviceProvider, CancellationToken token)
   {
     using var scope = serviceProvider.CreateScope();
     await using var job = ActivatorUtilities.CreateInstance<T>(scope.ServiceProvider);
-    await job.RunAsync(execution, token);
+    await job.RunAsync(context, token);
   }
 
-  private static async Task ExecuteWithoutScope(JobExecution execution, CancellationToken token)
+  private static async Task ExecuteWithoutScope(Context context, CancellationToken token)
   {
     await using var job = Activator.CreateInstance<T>();
-    await job.RunAsync(execution, token);
+    await job.RunAsync(context, token);
   }
 }

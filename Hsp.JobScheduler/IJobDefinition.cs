@@ -37,9 +37,9 @@ public interface IJobDefinition
   /// <summary>
   /// Runs the job.
   /// </summary>
-  /// <param name="execution">The execution instance.</param>
+  /// <param name="context">The execution context. This will hold a 'execution' entry that is the execution instance.</param>
   /// <param name="serviceProvider"></param>
   /// <param name="token"></param>
   /// <returns></returns>
-  Task Execute(JobExecution execution, IServiceProvider? serviceProvider, CancellationToken token);
+  Task Execute(Context context, IServiceProvider? serviceProvider, CancellationToken token);
 }

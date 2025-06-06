@@ -7,7 +7,7 @@ namespace Hsp.JobScheduler.Definitions;
 /// </summary>
 public class ActionJobDefinition : IJobDefinition
 {
-  private readonly Func<JobExecution, IServiceProvider?, CancellationToken, Task> _action;
+  private readonly Func<Context, IServiceProvider?, CancellationToken, Task> _action;
 
   /// <inheritdoc />
   public string Name { get; }
@@ -30,7 +30,7 @@ public class ActionJobDefinition : IJobDefinition
   /// <param name="name"></param>
   /// <param name="schedule"></param>
   /// <param name="action">The action to run.</param>
-  public ActionJobDefinition(string id, string name, Schedule? schedule, Func<JobExecution, IServiceProvider?, CancellationToken, Task> action)
+  public ActionJobDefinition(string id, string name, Schedule? schedule, Func<Context, IServiceProvider?, CancellationToken, Task> action)
   {
     Name = name;
     Id = id;
@@ -40,9 +40,11 @@ public class ActionJobDefinition : IJobDefinition
 
 
   /// <inheritdoc />
-  public async Task Execute(JobExecution execution, IServiceProvider? serviceProvider, CancellationToken token)
+  public async Task Execute(Context context, IServiceProvider? serviceProvider, CancellationToken token)
   {
     var policy = RetryPolicy ?? Policy.NoOpAsync();
-    await policy.ExecuteAsync(async () => { await _action(execution, serviceProvider, token); });
+    await policy.ExecuteAsync(
+      async (ctx, ct) => { await _action(ctx, serviceProvider, ct); },
+      context, token);
   }
 }

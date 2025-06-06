@@ -2,6 +2,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using Polly;
 
 namespace Hsp.JobScheduler;
 
@@ -117,7 +118,12 @@ public class JobExecution
       Scheduler.RaiseOnJobStarted(this);
       Logger.LogInformation("Starting job execution for definition {definitionId}.", Definition.Id);
       using var scope = _serviceProvider?.CreateScope();
-      await Definition.Execute(this, scope?.ServiceProvider, CancellationTokenSource.Token);
+      var context = new Context
+      {
+        { "execution", this },
+        { "definition", Definition }
+      };
+      await Definition.Execute(context, scope?.ServiceProvider, CancellationTokenSource.Token);
     }
     catch (Exception ex)
     {
