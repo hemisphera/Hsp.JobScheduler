@@ -10,7 +10,10 @@ namespace Hsp.JobScheduler;
 /// </summary>
 public class JobExecution
 {
-  private readonly ILogger<JobExecution> _logger;
+  /// <summary>
+  /// The logger assigned to this execution.
+  /// </summary>
+  protected ILogger<JobExecution> Logger { get; }
 
   private readonly IServiceProvider? _serviceProvider;
 
@@ -88,7 +91,7 @@ public class JobExecution
     Definition = definition;
     _serviceProvider = serviceProvider;
     CancellationTokenSource = tokenSource;
-    _logger = serviceProvider?.GetService<ILogger<JobExecution>>() ?? new NullLogger<JobExecution>();
+    Logger = serviceProvider?.GetService<ILogger<JobExecution>>() ?? new NullLogger<JobExecution>();
     Task = Execute(scheduler.Clock);
   }
 
@@ -107,18 +110,18 @@ public class JobExecution
       { "definitionName", Definition.Name }
     };
 
-    using var loggerScope = _logger.BeginScope(propertydict);
+    using var loggerScope = Logger.BeginScope(propertydict);
 
     try
     {
       Scheduler.RaiseOnJobStarted(this);
-      _logger.LogInformation("Starting job execution for definition {definitionId}.", Definition.Id);
+      Logger.LogInformation("Starting job execution for definition {definitionId}.", Definition.Id);
       using var scope = _serviceProvider?.CreateScope();
-      await Definition.Execute(scope?.ServiceProvider, CancellationTokenSource.Token);
+      await Definition.Execute(this, scope?.ServiceProvider, CancellationTokenSource.Token);
     }
     catch (Exception ex)
     {
-      _logger.LogError(ex, "Job failed for definition {definitionId} failed.", Definition.Id);
+      Logger.LogError(ex, "Job failed for definition {definitionId} failed.", Definition.Id);
       failure = true;
       Error = ex;
     }
@@ -129,7 +132,7 @@ public class JobExecution
       if (nextExecution != null)
         propertydict.Add("nextExecution", nextExecution.Value);
       propertydict.Add("success", !failure);
-      _logger.LogInformation("Finished job execution for definition {definitionId} in {duration}ms.",
+      Logger.LogInformation("Finished job execution for definition {definitionId} in {duration}ms.",
         Definition.Id,
         Duration?.TotalMilliseconds
       );

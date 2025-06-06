@@ -1,11 +1,13 @@
-﻿namespace Hsp.JobScheduler.Definitions;
+﻿using Polly;
+
+namespace Hsp.JobScheduler.Definitions;
 
 /// <summary>
 /// A definition of a scheduled job using an action as runner.
 /// </summary>
 public class ActionJobDefinition : IJobDefinition
 {
-  private readonly Func<IServiceProvider?, CancellationToken, Task> _action;
+  private readonly Func<JobExecution, IServiceProvider?, CancellationToken, Task> _action;
 
   /// <inheritdoc />
   public string Name { get; }
@@ -17,6 +19,9 @@ public class ActionJobDefinition : IJobDefinition
   public Schedule? Schedule { get; }
 
   /// <inheritdoc />
+  public IAsyncPolicy? RetryPolicy { get; set; }
+
+  /// <inheritdoc />
   public bool ExecutionsCanOverlap { get; set; }
 
   /// <summary>
@@ -25,7 +30,7 @@ public class ActionJobDefinition : IJobDefinition
   /// <param name="name"></param>
   /// <param name="schedule"></param>
   /// <param name="action">The action to run.</param>
-  public ActionJobDefinition(string id, string name, Schedule? schedule, Func<IServiceProvider?, CancellationToken, Task> action)
+  public ActionJobDefinition(string id, string name, Schedule? schedule, Func<JobExecution, IServiceProvider?, CancellationToken, Task> action)
   {
     Name = name;
     Id = id;
@@ -35,8 +40,9 @@ public class ActionJobDefinition : IJobDefinition
 
 
   /// <inheritdoc />
-  public async Task Execute(IServiceProvider? serviceProvider, CancellationToken token)
+  public async Task Execute(JobExecution execution, IServiceProvider? serviceProvider, CancellationToken token)
   {
-    await _action(serviceProvider, token);
+    var policy = RetryPolicy ?? Policy.NoOpAsync();
+    await policy.ExecuteAsync(async () => { await _action(execution, serviceProvider, token); });
   }
 }
