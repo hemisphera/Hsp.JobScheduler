@@ -1,5 +1,4 @@
-﻿using System.Globalization;
-using Microsoft.Extensions.DependencyInjection;
+﻿using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Polly;
@@ -14,7 +13,7 @@ public class JobExecution
   /// <summary>
   /// The logger assigned to this execution.
   /// </summary>
-  protected ILogger<JobExecution> Logger { get; }
+  public ILogger<JobExecution> Logger { get; }
 
   private readonly IServiceProvider? _serviceProvider;
 
@@ -23,8 +22,14 @@ public class JobExecution
   /// </summary>
   public IJobDefinition Definition { get; }
 
+  /// <summary>
+  /// The task that represents the job execution.
+  /// </summary>
   public Task Task { get; private set; }
 
+  /// <summary>
+  /// The scheduler that started this job.
+  /// </summary>
   public SimpleJobScheduler Scheduler { get; }
 
   /// <summary>
@@ -120,8 +125,8 @@ public class JobExecution
       using var scope = _serviceProvider?.CreateScope();
       var context = new Context
       {
-        { "execution", this },
-        { "definition", Definition }
+        { nameof(Extensions.ExecutionContextKeyName), this },
+        { nameof(Extensions.DefinitionContextKeyName), Definition }
       };
       await Definition.Execute(context, scope?.ServiceProvider, CancellationTokenSource.Token);
     }
